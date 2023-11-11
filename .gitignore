@@ -1,3 +1,4 @@
-./data
+data
 .python-version
 .idea
+**/__pycache__/**
