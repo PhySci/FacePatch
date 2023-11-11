@@ -10,7 +10,7 @@ import random
 
 class FaceKeyPointDataset(Dataset):
 
-    def __init__(self, data_pth: str, img_list: list = []):
+    def __init__(self, data_pth: str, img_list: list = [], add_filename=False):
         """
 
         :param data_pth: path to folder with labels and images
@@ -19,6 +19,7 @@ class FaceKeyPointDataset(Dataset):
         self._data_pth = data_pth
         self._labels = self._get_landmark_data(img_list)
         self._img_pth = os.path.join(self._data_pth, "images")
+        self._add_filename = add_filename
 
     def __len__(self):
         return len(self._labels)
@@ -41,15 +42,22 @@ class FaceKeyPointDataset(Dataset):
         for l in params["face_landmarks"]:
             landmarks.extend(l)
 
-        return img, torch.Tensor(landmarks)
+        if self._add_filename:
+            return img, torch.Tensor(landmarks), params["file_name"]
+        else:
+            return img, torch.Tensor(landmarks)
 
 
-def get_model():
+def get_model(pth: str = None):
     model = models.mobilenet_v2(pretrained=True)
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.2, inplace=True),
         nn.Linear(in_features=1280, out_features=136)
     )
+
+    if pth is not None:
+        model.load_state_dict(torch.load(pth))
+
     return model
 
 
