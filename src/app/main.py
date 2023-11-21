@@ -5,8 +5,9 @@ from PIL import Image, ImageDraw
 import os
 import torchvision.transforms.functional as F
 from torchvision.io import read_image,  ImageReadMode
-from torchvision.transforms.functional import pil_to_tensor
+from torchvision.transforms.functional import pil_to_tensor, to_pil_image
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
+from torchvision import transforms
 from pygem import IDW
 import numpy as np
 
@@ -44,7 +45,7 @@ class DrawPatches:
         with open(ref_pth, "r") as fid:
             return json.load(fid)
 
-    def _get_face_region(self, img: Image):
+    def _get_face_region(self, img: Image, margin: float = 1.2):
         """
         Detects face and returns ROI
         :param img: PIL image
@@ -60,7 +61,21 @@ class DrawPatches:
         if prob[0] < 0.9:
             _logger.warning("Image quality is too low. Try another image")
             return None
-        return img.crop(boxes[0])
+
+        box = boxes[0]
+        x_mean = (box[0] + box[2]) / 2
+        y_mean = (box[1] + box[3]) / 2
+        dx = box[2] - box[0]
+        dy = box[3] - box[1]
+        half_size = margin * max(dx, dy) / 2
+        left = x_mean - half_size
+        right = x_mean + half_size
+        top = y_mean - half_size
+        bottom = y_mean + half_size
+
+        t2 = img.crop((left, top, right, bottom))
+
+        return t2
 
     def _get_landmarks(self, img):
         """
@@ -71,20 +86,21 @@ class DrawPatches:
         img_t = pil_to_tensor(img) / 255.0
         preprocess = Compose([
             Resize((224, 224), antialias=True),
-            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            #Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
-        img_t = preprocess(img_t).unsqueeze(0)
-        output = self._landmark_model(img_t)
+        img_t = preprocess(img_t)
+
+        output = self._landmark_model(img_t.unsqueeze(0))
         landmarks = (output.detach() + 0.5).numpy().tolist()[0]
-        return landmarks
+        return landmarks, img_t
 
     def _get_patch_position(self, landmarks: list):
         res = []
         reference_landmarks = self._reference["landmarks"]
         reference_patches = self._reference["patches"]
 
-        idw = IDW(list2arr(reference_landmarks), list2arr(landmarks), power=180)
+        idw = IDW(list2arr(reference_landmarks), list2arr(landmarks), power=100)
         for reference_patch in reference_patches:
             patch_points = idw(list2arr(reference_patch))
             res.append(arr2list(patch_points))
@@ -95,16 +111,13 @@ class DrawPatches:
         sz = img.size
         r = 1
         for patch in patches:
-            points = [(point[0]*sz[1], point[1]*sz[0]) for point in patch]
+            points = [(point[0]*sz[0], point[1]*sz[1]) for point in patch]
             draw.polygon(points)
 
         for landmark in landmarks:
             x, y = landmark[0]*sz[0], landmark[1]*sz[1]
             draw.ellipse(((x - r, y - r), (x + r, y + r)), "red")
-
-        img.show()
         return img
-
 
     def process_image(self, img):
         """
@@ -113,22 +126,13 @@ class DrawPatches:
         :return: PIL image
         """
         img_face = self._get_face_region(img)
-        landmarks = self._get_landmarks(img_face)
+        landmarks, img_t = self._get_landmarks(img_face)
         patch_points = self._get_patch_position(landmarks)
         return self._draw_patches(img_face, patch_points, landmarks)
 
 
-def main():
-    # что делаем со входным изображением
-    # 1. Ищем лицо
-    # 2. Получаем патч
-    # 3. Находим ключевые точки
-    # 4. Рисуем патчи
-    pass
-
-
 def test():
-    test_img = "test.jpg"
+    test_img = "2.jpg"
     img = Image.open(test_img)
 
     dp = DrawPatches("./model_v1.2.ptc")
@@ -136,7 +140,5 @@ def test():
     img2.show()
 
 
-
 if __name__ == "__main__":
-    #main()
     test()

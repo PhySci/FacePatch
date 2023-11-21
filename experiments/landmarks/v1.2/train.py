@@ -13,6 +13,8 @@ from PIL import Image, ImageDraw
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
+
+
 DATA_PTH = "../../../data/raw/landmarks"
 DEVICE = "cuda"
 
@@ -81,7 +83,7 @@ def train():
         scheduler.step()
 
         if loss_val < loss_val_best:
-            #torch.save(model.state_dict(), "../../../models/model_v1.2.ptc")
+            torch.save(model.state_dict(), "../../../models/model_v1.2.ptc")
             loss_val_best = loss_val
             print("Save the model")
 
@@ -96,9 +98,7 @@ def eval():
     ds_val = FaceKeyPointDataset(DATA_PTH, img_list=test_ids, add_filename=True)
     dl_val = DataLoader(ds_val, batch_size=batch_size, num_workers=4)
 
-    model = get_model2().to(device=DEVICE)
-    model.load_state_dict(torch.load("../../../models/model_v1.2.ptc"))
-    model.to(DEVICE)
+    model = get_model2(pth="../../../models/model_v1.2.ptc").to(device=DEVICE)
     model.eval()
 
     loss_fn = nn.MSELoss()
@@ -124,35 +124,35 @@ def eval():
 
 
 def inference(img_path: str):
-    # img_path = "../../data/raw/images/00017.png"
+    img_path = "3.jpg"
     img = read_image(img_path, mode=ImageReadMode.RGB) / 255.0
 
     preprocess = transforms.Compose([
-        transforms.Resize(512),
-        transforms.CenterCrop(512),
+        transforms.Resize((224, 224), antialias=True),
+        #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     img = preprocess(img).unsqueeze(0)
 
-    model = get_model("../../models/model_v2.ptc")
+    model = get_model2(pth="../../../models/model_v1.2.ptc")
     model.eval()
     output = model(img)
-    landmarks = output.cpu().detach().numpy().tolist()[0]
+    landmarks = (output.cpu().detach().numpy()+0.5).tolist()[0]
 
     draw_img = to_pil_image(img[0, :, :, :])
-    landmarks = compact(landmarks)
     draw = ImageDraw.Draw(draw_img)
 
     for landmark in landmarks:
-        x = landmark[0]
-        y = landmark[1]
+        x = landmark[0]*224
+        y = landmark[1]*224
         r = 2
         leftUpPoint = (x-r, y-r)
         rightDownPoint = (x+r, y+r)
         twoPointList = [leftUpPoint, rightDownPoint]
         draw.ellipse(twoPointList, "green")
 
-    draw_img.save("test.jpg")
+    draw_img.show()
+    #draw_img.save("test.jpg")
 
 
 def parse_args():

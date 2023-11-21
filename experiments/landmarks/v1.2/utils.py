@@ -16,10 +16,9 @@ def get_preprocess_pipeline(img_size):
         Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-
 class FaceKeyPointDataset(Dataset):
 
-    def __init__(self, data_pth: str, img_list: list = [], add_filename=False, img_size: int = 224, aug_transform = None):
+    def __init__(self, data_pth: str, img_list: list = [], add_filename=False, img_size: int = 224, aug_transform: list = None):
         """
 
         :param data_pth: path to folder with labels and images
@@ -54,9 +53,7 @@ class FaceKeyPointDataset(Dataset):
         if self._aug_transform is not None:
             img = self._aug_transform(img)
 
-
         img = self._preprocess(img / 255.0)
-
 
         landmarks = []
         for l in params["face_landmarks"]:
