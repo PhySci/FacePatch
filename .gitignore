@@ -2,3 +2,9 @@ data
 .python-version
 .idea
 **/__pycache__/**
+**/.ipynb_checkpoints
+**/*.jpg
+**/*.png
+**/runs
+models
+**/Makefile
